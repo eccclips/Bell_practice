@@ -1,0 +1,73 @@
+version: "3"
+
+networks:
+  gitea:
+    external: false
+
+services:
+  server:
+    image: docker.gitea.com/gitea:1.23.5
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=db:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD=gitea
+    restart: always
+    networks:
+      - gitea
+    volumes:
+      - nfs_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+      - "222:22"
+    depends_on:
+      - db
+
+  kafka-1:
+    image: apache/kafka:3.9.0
+    container_name: kafka-1
+    networks:
+      - gitea
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka-1:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+    restart: always
+    volumes:
+      - ./kafka_data:/var/lib/kafka/data
+
+  db:
+    image: docker.io/library/postgres:16
+    container_name: db
+    restart: always
+    environment:
+      - POSTGRES_USER=gitea
+      - POSTGRES_PASSWORD=gitea
+      - POSTGRES_DB=gitea
+    networks:
+      - gitea
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+  nfs_data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=172.22.174.173,rw,nfsvers=4"
+      device: ":/mnt/nfs"
