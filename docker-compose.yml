@@ -16,6 +16,8 @@ services:
       - GITEA__database__NAME=gitea
       - GITEA__database__USER=gitea
       - GITEA__database__PASSWD=gitea
+      - GITEA__queue__TYPE=kafka
+      - GITEA__queue__BROKER=kafka-1:9092
     restart: always
     networks:
       - gitea
@@ -28,6 +30,7 @@ services:
       - "222:22"
     depends_on:
       - db
+      - kafka-1
 
   kafka-1:
     image: apache/kafka:3.9.0
@@ -42,13 +45,15 @@ services:
       - KAFKA_PROCESS_ROLES=controller,broker
       - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093
       - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka-1:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LOG_DIRS=/var/lib/kafka/data
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
     restart: always
     volumes:
       - ./kafka_data:/var/lib/kafka/data
+
+
 
   db:
     image: docker.io/library/postgres:16
@@ -62,6 +67,22 @@ services:
       - gitea
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      
+  gitea-kafka-consumer:
+    image: custom-gitea-kafka-consumer
+    container_name: gitea-kafka-consumer-1
+    networks:
+      - gitea
+    environment:
+      - KAFKA_BROKER=kafka-1:9092
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_USER=gitea
+      - PG_PASSWORD=gitea
+      - PG_DB=gitea
+    depends_on:
+      - kafka-1
+      - db
 
 volumes:
   postgres_data:
@@ -71,3 +92,5 @@ volumes:
       type: "nfs"
       o: "addr=172.22.174.173,rw,nfsvers=4"
       device: ":/mnt/nfs"
+
+ 
