@@ -16,6 +16,9 @@ services:
       - GITEA__database__NAME=gitea
       - GITEA__database__USER=gitea
       - GITEA__database__PASSWD=gitea
+      - GITEA__log__MODE=file
+      - GITEA__log__LEVEL=Info
+      - GITEA__log__ROOT_PATH=/data/gitea/log
     restart: always
     networks:
       - gitea
@@ -40,15 +43,36 @@ services:
     environment:
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=controller,broker
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093
       - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka-1:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LOG_DIRS=/var/lib/kafka/data
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
     restart: always
     volumes:
-      - ./kafka_data:/var/lib/kafka/data
+      - ./kafka_data1:/var/lib/kafka/data
+
+  kafka-2:
+    image: apache/kafka:3.9.0
+    container_name: kafka-2
+    networks:
+      - gitea
+    ports:
+      - "9094:9092"
+      - "9095:9093"
+    environment:
+      - KAFKA_NODE_ID=2
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka-2:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+    restart: always
+    volumes:
+      - ./kafka_data2:/var/lib/kafka/data
 
   db:
     image: docker.io/library/postgres:16
@@ -63,6 +87,23 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  kafka-init:
+    image: apache/kafka:3.9.0
+    networks:
+      - gitea
+    depends_on:
+      - kafka-1
+      - kafka-2
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      # Ждем запуска Kafka
+      sleep 10;
+      kafka-topics.sh --create --topic my-topic --bootstrap-server kafka-1:9092 --partitions 3 --replication-factor 2;
+      echo 'Топик my-topic создан';
+      "
+
+
 volumes:
   postgres_data:
   nfs_data:
@@ -71,3 +112,5 @@ volumes:
       type: "nfs"
       o: "addr=172.22.69.178,rw,nfsvers=4"
       device: ":/mnt/nfs"
+  kafka_data1:
+  kafka_data2:
