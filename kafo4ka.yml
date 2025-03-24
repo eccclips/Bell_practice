@@ -1,0 +1,51 @@
+- name: Deploy Kafka in Docker
+  hosts: oracle
+  become: true
+  become_user: root
+
+
+  tasks:
+
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create directory for Kafka
+      file:
+        path: /opt/kafka
+        state: directory
+        mode: '0755'
+
+    - name: Copy docker-compose.yml
+      copy:
+        dest: /opt/kafka/docker-compose.yml
+        content: |
+          version: "3"
+          
+          services:
+            kafka-1:
+              image: apache/kafka:3.9.0
+              container_name: kafka-ansible
+              ports:
+                - "9092:9092"
+                - "9093:9093"
+              environment:
+                - KAFKA_NODE_ID=1
+                - KAFKA_PROCESS_ROLES=controller,broker
+                - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093
+                - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka-1:9093
+                - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://172.22.174.173:9092
+                - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+                - KAFKA_LOG_DIRS=/var/lib/kafka/data
+                - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+              volumes:
+                - /opt/kafka/kafka_data:/var/lib/kafka/data
+
+
+
+    - name: Start Kafka container
+      command: docker-compose up --build
+      args:
+        chdir: /opt/kafka
