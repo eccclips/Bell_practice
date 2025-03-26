@@ -58,4 +58,51 @@ ssh root@{server-ip}
 ```
 
 ---
+## Разбор Ansible-скрипта по блокам
+
+Подключение происходит через root пользователя, заодно указываем группу вм к которой осуществляется подключение
+```
+- name: Remove legacy Docker packages
+```
+Удаляет старые версии Docker, встроенные в Ubuntu и конфиг файлы пакетов
+```
+- name: Install certificates
+```
+Устанавливает необходимые пакеты и обновляет их кэш
+```
+- name: Add Docker's official GPG key
+```
+Импортирует GPG ключ для проверки подлинности пакетов Docker
+```
+- name: Set up stable repository
+```
+Добавялет официальный репозиторий Docker
+```
+- name: Install Docker packages 
+```
+Устанавливает актуальные Docker пакеты
+```
+- name: Manage Docker service
+```
+Запускает Docker и включает автозагрузку
+```
+- name: Manage docker group
+```
+Добавляет текущего пользователя в группу docker
+```
+- name: Install compose plugin
+```
+Установка плагина Docker Compose
+```
+- name: Verify Docker Compose
+```
+Проверяет версию Docker Compose
+```
+- name: Copy docker-compose.yml
+```
+Создает файл для развертывания Kafka
+```
+- name: Start Kafka container
+```
+Запускает Kafka в фоновом режиме
     
