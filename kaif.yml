@@ -1,0 +1,129 @@
+- name: Install Docker Engine on Ubuntu
+  hosts: kafka_test
+  become: true
+  become_user: root
+
+  tasks:
+    # 1. Uninstall old versions
+    - name: Remove legacy Docker packages
+      apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+        purge: yes
+
+    # 2. Set up repository
+    - name: Install prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Add Docker's official GPG key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+        keyring: /usr/share/keyrings/docker-archive-keyring.gpg
+
+    - name: Set up stable repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker-ce-stable
+
+    # 3. Install Docker Engine
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+        state: present
+        update_cache: yes
+
+    # 4. Start and enable service
+    - name: Manage Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    # 5. Verify installation
+    - name: Run test container
+      command: docker run --rm hello-world
+      register: docker_test
+      changed_when: false
+    - debug:
+        msg: "{{ docker_test.stdout }}"
+
+    # 6. Post-installation steps
+    - name: Manage docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Apply group changes
+      meta: reset_connection
+
+    # Install Docker Compose plugin
+    - name: Install compose plugin
+      apt:
+        name: docker-compose-plugin
+        state: present
+
+    - name: Verify Docker Compose
+      command: docker compose version
+      register: compose_version
+    - debug:
+        msg: "{{ compose_version.stdout }}"
+    # Настройка Kafka
+    - name: Create directory for Kafka
+      file:
+        path: /opt/kafka
+        state: directory
+        mode: '0755'
+
+    - name: Create Kafka data directory
+      file:
+        path: /opt/kafka/kafka_data
+        state: directory
+        mode: '0777'
+
+    - name: Copy docker-compose.yml
+      copy:
+        dest: /opt/kafka/docker-compose.yml
+        content: |
+          version: "3"
+          services:
+            kafka-1:
+              image: apache/kafka:3.9.0
+              container_name: kafka-ansible
+              ports:
+                - "9092:9092"
+                - "9093:9093"
+              environment:
+                - KAFKA_NODE_ID=1
+                - KAFKA_PROCESS_ROLES=controller,broker
+                - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093
+                - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://kafka-1:9093
+                - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://172.22.174.173:9092
+                - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+                - KAFKA_LOG_DIRS=/var/lib/kafka/data
+                - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+              volumes:
+                - /opt/kafka/kafka_data:/var/lib/kafka/data
+
+    - name: Start Kafka container
+      command: docker compose up -d
+      args:
+        chdir: /opt/kafka
