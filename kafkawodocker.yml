@@ -1,0 +1,70 @@
+- name: Install Kafka 3.9.0 without docker
+  hosts: kafka_test
+  become: true
+  become_user: root
+  
+  
+  tasks:
+
+    - name: jdk install
+      ansible.builtin.apt:
+        name: openjdk-21-jdk
+        state: present
+        update_cache: yes
+
+
+    - name: Download kafka.tgz file and extract to /opt/kafka
+      ansible.builtin.unarchive:
+        src: https://dlcdn.apache.org/kafka/3.9.0/kafka_2.13-3.9.0.tgz
+        dest: /opt/kafka
+        remote_src: yes
+        owner: root
+        group: root
+
+
+    - name: copy kafka.service
+      ansible.builtin.template:
+        src: kafka.service
+        dest: /etc/systemd/system/kafka.service
+
+
+    - name: Restart kafka
+      ansible.builtin.service:
+        name: kafka
+        state: stopped
+
+
+    - name: updating parameters in "server.properties"
+      ansible.builtin.lineinfile:
+        path: "/opt/kafka/kafka_2.13-3.9.0/config/kraft/server.properties"
+        regexp: '^{{ item.key }}='
+        line: '{{ item.key }}={{ item.value }}'
+      with_items:
+        - { key: 'advertised.listeners', value: 'PLAINTEXT://{{ new_ip }}:9092,CONTROLLER://localhost:9093' }
+        - { key: 'listeners', value: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093' }
+        - { key: 'log.dirs', value: '/opt/kafka/kafka_2.13-3.9.0/logs/kraft-combined-logs'}
+
+      notify: Restart kafka
+
+
+    - name: Run Kafka storage format command
+      shell: |
+        bin/kafka-storage.sh format --ignore-formatted --standalone -t Auy_ixwCTza0qaXnXyM4YQ \
+        -c config/kraft/server.properties
+      args:
+        chdir: "/opt/kafka/kafka_2.13-3.9.0"
+
+
+    - name: Restart kafka
+      ansible.builtin.service:
+        name: kafka
+        state: restarted
+
+
+
+
+  handlers:
+    - name: Restart kafka
+      ansible.builtin.service:
+        name: kafka
+        state: restarted
