@@ -1,0 +1,21 @@
+- name: Install jdk 21
+  hosts: centos
+  become: true
+  become_user: root
+  
+  tasks:
+
+    - name: jdk install (Debian)
+      ansible.builtin.apt:
+        name: openjdk-21-jdk
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+
+    - name: jdk install (Fedora)
+      ansible.builtin.dnf:
+        name: java-21-openjdk.x86_64
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "RedHat"

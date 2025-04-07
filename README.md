@@ -57,6 +57,8 @@ passwd
 
 ```bash
 ssh-copy-id {username(root)}@{server-ip}
+
+ssh-copy-id -i /home/p0mi/.ssh/key.pem.pub admin@192.168.1.22
 ```
 7. проверить подключение. В WSL написать (```exit``` чтобы отключиться):
 
@@ -171,6 +173,9 @@ WantedBy=multi-user.target
 
 ```
 ./kafka-console-producer.sh --bootstrap-server localhost:9092 --topic test
+```
+```
+/opt/kafka/kafka_2.13-3.9.0/bin/kafka-metadata-quorum.sh --bootstrap-controller 192.168.1.21:9093 describe --status
 ```
 
     
