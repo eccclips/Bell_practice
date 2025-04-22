@@ -1,0 +1,31 @@
+- name: Initiating docker container with frontend
+  hosts: kafka_test[0]
+  become: true
+  become_user: root
+  tasks:
+
+    - name: Create a data container
+      docker_container:
+        name: node
+        image: node:18.18.0
+        ports:
+          - "8000:8000"
+        state: started
+        volumes:
+          - /var/lib/node/data:/opt
+        detach: true
+        tty: true
+        interactive: true
+    
+    - name: Copy root-front-release-1.0.4.tar.gz into the container
+      community.docker.docker_container_copy_into:
+        container: node
+        path: D:/VSCode/practice/root-front-release-1.0.4
+        container_path: /tmp/
+      
+    - name: Unarchieve root-front-release-1.0.4.tar.gz
+      community.docker.docker_container_exec:
+        container: node
+        command: tar -xzvf root-front-release-1.0.4.tar.gz -C /opt
+        chdir: /
+      register: result

@@ -29,7 +29,7 @@ sudo apt-get update
 1. установить Open SSH: 
 
 ```bash
-sudo apt install openssh-server
+sudo apt install openssh-server openssh-clients
 ```
 2. На виртуальной машине ubuntu и в WSL создать пары ssh ключей:
 
@@ -178,4 +178,73 @@ WantedBy=multi-user.target
 /opt/kafka/kafka_2.13-3.9.0/bin/kafka-metadata-quorum.sh --bootstrap-controller 192.168.1.21:9093 describe --status
 ```
 
+## Kafka KRaft Cluster без Docker (версия 3.9.0) 
+
+Ansible-плейбук для автоматизированного развёртывания Kafka-кластера (3 узла) в режиме KRaft без использования Docker.  
+Подходит для production и обучения.
+
+---
+
+### 🔧 Что делает playbook (по блокам)
+
+#### - name: Jdk install (Debian)
+- Устанавливает OpenJDK 21 через apt.
+
+#### - name: Jdk install (RHEL)
+- Устанавливает OpenJDK 21 через dnf.
+
+#### - name: Create kafka directory
+- Создаёт рабочую директорию /opt/kafka.
+
+#### - name: Download kafka archive
+- Скачивает архив Kafka 3.9.0 (Scala 2.13) с официального зеркала.
+
+#### - name: Unpack kafka archive
+- Распаковывает архив в /opt/kafka/kafka_2.13-3.9.0.
+
+#### - name: Create systemd kafka.service
+- Копирует unit-файл kafka.service в /etc/systemd/system/.
+
+#### - name: Reload systemd daemon
+- Перезагружает демон systemd, чтобы подхватить новый сервис.
+
+#### - name: Generate server.properties
+- Создаёт или модифицирует файл конфигурации Kafka:
+  - process.roles=broker,controller
+  - controller.quorum.voters — на основе инвентаря
+  - Уникальный broker.id — из переменной BROKER_ID
+  - Пути к логам, директориям, портам и другим параметрам
+
+#### - name: Create log dirs
+- Создаёт директории логов Kafka, если их нет.
+
+#### - name: Generate cluster.id
+- Генерирует UUID (один раз) и сохраняет его в файл cluster.id на контроллере.
+
+#### - name: Sync cluster.id to all nodes
+- Распространяет сгенерированный cluster.id на все узлы кластера.
+
+#### - name: Format kafka storage
+- Выполняет команду kafka-storage.sh format с заданным cluster.id, если Kafka ещё не инициализирована.
+
+#### - name: Enable kafka systemd service
+- Включает автозапуск Kafka через systemctl enable kafka.
+
+#### - name: Start kafka
+- Запускает Kafka как systemd-сервис.
+
+#### - name: Restart kafka on config change
+- Обеспечивает перезапуск сервиса при изменении конфигурации.
+
+---
+
+## Сборка фронта в докере на node:18.18.0
+
+1. Создаем контейнер с образом node:18.18.0
+
+```
+sudo docker run -itd --name node -p 8000:8000 node:18.18.0
+```
+
+2. Заходим внутрь контейнера и копи
     
