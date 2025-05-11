@@ -26,6 +26,7 @@ services:
     depends_on:
       - db
     volumes:
+      - /var/lib/gitea:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     ports:
@@ -37,6 +38,7 @@ services:
     container_name: jenkins-server
     environment:
       - JENKINS_OPTS=--prefix=/jenkins
+    restart: always
     ports:
       - "8080:8080"
       - "50000:50000"
@@ -71,4 +73,7 @@ services:
     networks:
       - gitea
     volumes:
-      - /tmp/db/data:/var/lib/postgresql/data
+      - /var/lib/postgres/data:/var/lib/postgresql/data
+
+volumes:
+  jenkins_home:

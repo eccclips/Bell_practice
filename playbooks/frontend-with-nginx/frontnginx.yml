@@ -145,7 +145,7 @@
 
     - name: Copy frontend files
       ansible.builtin.copy:
-        src: /home/p0mi/ansible/frontend-with-nginx/files/root-front-release-1.0.4.tar.gz
+        src: /mnt/d/VSCode/practice/playbooks/frontend-with-nginx/files/root-front-release-1.0.4.tar.gz
         dest: /tmp/frontend/
         owner: root
         group: root
@@ -176,13 +176,22 @@
 
     - name: Copy files
       ansible.builtin.copy:
-        src: "{{ item }}"
+        src: "files/{{ item }}"
         dest: "/opt/docker-stack/"
         mode: 0644
       loop:
         - "docker-compose.yml"
         - "ssl.conf.j2"
 
+    - name: Copy files
+      ansible.builtin.copy:
+        src: "files/ssl/{{ item }}"
+        dest: "/tmp/frontend/"
+        mode: 0644
+      loop:
+        - "test.local.crt"
+        - "test.local.key"
+        - "ssl.conf.j2"
 
     - name: Build frontend image
       community.docker.docker_image:
@@ -243,10 +252,6 @@
           - "443:443"
         state: started
         restart_policy: unless-stopped
-        volumes:
-          - /opt/docker-stack/ssl.conf.j2:/etc/nginx/conf.d/ssl.conf
-          - /etc/ssl/test.local/test.local.crt:/etc/ssl/test.local/test.local.crt
-          - /etc/ssl/test.local/test.local.key:/etc/ssl/test.local/test.local.key
         networks:
           - name: gitea
 
