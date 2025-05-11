@@ -1,0 +1,122 @@
+- name: Install Kafka 3.9.0 without docker
+  hosts: ubus
+  become: true
+  become_user: root
+  
+  
+  tasks:
+
+    - name: jdk install (Debian)
+      ansible.builtin.apt:
+        name: openjdk-21-jdk
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+
+    - name: jdk install (Fedora)
+      ansible.builtin.dnf:
+        name: java-21-openjdk.x86_64
+        state: present
+        update_cache: yes
+      when: ansible_facts['os_family'] == "RedHat"
+    
+    - name: Creates directory
+      ansible.builtin.file:
+        path: /opt/kafka
+        state: directory
+        owner: root
+        group: root
+
+
+    - name: Download kafka.tgz file and extract to /opt/kafka
+      ansible.builtin.unarchive:
+        src: https://dlcdn.apache.org/kafka/3.9.0/kafka_2.13-3.9.0.tgz
+        dest: /opt/kafka
+        remote_src: true
+        owner: root
+        group: root
+        
+
+
+    - name: copy kafka.service
+      ansible.builtin.template:
+        src: kafka.service
+        dest: /etc/systemd/system/kafka.service
+
+
+    - name: Restart kafka
+      ansible.builtin.service:
+        name: kafka
+        state: stopped
+
+
+    - name: updating parameters in "server.properties"
+      ansible.builtin.lineinfile:
+        path: "/opt/kafka/kafka_2.13-3.9.0/config/kraft/server.properties"
+        regexp: '^{{ item.key }}='
+        line: '{{ item.key }}={{ item.value }}'
+      with_items:
+        - { key: 'node.id', value: '{{ BROKER_ID }}' }
+        - { key: 'controller.quorum.voters', value: '1@192.168.1.21:9093,2@192.168.1.16:9093,3@192.168.1.22:9093'} 
+        - { key: 'advertised.listeners', value: 'PLAINTEXT://{{ ansible_host }}:9092' }
+        - { key: 'listeners', value: 'PLAINTEXT://{{ ansible_host }}:9092,CONTROLLER://{{ ansible_host }}:9093' }
+        - { key: 'log.dirs', value: '/var/lib/kafka'}
+        - { key: 'num.partitions', value: 6}
+        - { key: 'offsets.topic.replication.factor', value: 2}
+        - { key: 'transaction.state.log.replication.factor', value: 2}
+
+      notify: Restart kafka
+
+
+    - name: Run Kafka storage format command
+      shell: |
+        bin/kafka-storage.sh format --ignore-formatted --standalone -t Auy_ixwCTza0qaXnXyM4YQ \
+        -c config/kraft/server.properties
+      args:
+        chdir: "/opt/kafka/kafka_2.13-3.9.0"
+
+
+    - name: Restart kafka
+      ansible.builtin.service:
+        name: kafka
+        state: restarted
+
+
+  handlers:
+    - name: Restart kafka
+      ansible.builtin.service:
+        name: kafka
+        state: restarted
+  
+
+- name: Initiating docker container with frontend
+  hosts: kafka_test[0]
+  become: true
+  become_user: root
+  tasks:
+
+    - name: Create a data container
+      docker_container:
+        name: node
+        image: node:18.18.0
+        ports:
+          - "8000:8000"
+          - "8080:80"
+        volumes:
+          - /data
+    
+    - name: Copy root-front-release-1.0.4.tar.gz into the container
+      community.docker.docker_container_copy_into:
+        container: node
+        path: root-front-release-1.0.4.tar.gz
+        container_path: /opt/
+      
+    - name: Unarchieve root-front-release-1.0.4.tar.gz
+      community.docker.docker_container_exec:
+        container: node
+        command: bin/bash - c " tar -xzvf root-front-release-1.0.4.tar.gz -C /opt"
+        chdir: /opt
+      register: result
+
+    

@@ -1,0 +1,36 @@
+- name: Initiating docker container with frontend
+  hosts: ubus[0]
+  become: true
+  become_user: root
+  tasks:
+    - name: Copy file with owner and permissions
+      ansible.builtin.copy:
+        src: /home/arsen/Bell_practice/playbooks/frontend-with-nginx/files/root-front-release-1.0.4.tar.gz
+        dest: /tmp
+        owner: root
+        group: root
+        mode: '0777'
+
+    - name: Move files to final location
+      command: >
+        sh -c 'tar -xzvf /tmp/root-front-release-1.0.4.tar.gz -C /tmp &&
+        rm /tmp/root-front-release-1.0.4.tar.gz'
+
+    - name: Create a data container
+      docker_container:
+        name: node
+        image: node:18.18.0
+        ports:
+          - "8000:8000"
+        state: started
+        volumes:
+          - "/tmp/root-front-release-1.0.4:/app/root-front-release-1.0.4/"
+        detach: true
+        tty: true
+        interactive: true
+
+    - name: Run a simple command (command)
+      community.docker.docker_container_exec:
+        container: node
+        command: sh -c 'npm install && npm run build'
+        chdir: /opt/root-front-release-1.0.4/
